@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Serial Monitor - Dual Terminal</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 10px;
+            background-color: #f0f4f8;
+            color: #333;
+        }
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+            font-size: 24px;
+            margin-bottom: 15px;
+        }
+        .terminal-container {
+            display: flex;
+            justify-content: space-between;
+            gap: 15px;
+        }
+        .terminal {
+            width: 48%;
+            background-color: #ffffff;
+            border-radius: 8px;
+            padding: 10px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            height: 400px;
+        }
+        select, button, input {
+            font-family: 'Roboto', sans-serif;
+            font-size: 12px;
+            margin: 3px 0;
+            background-color: #3498db;
+            color: #ffffff;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px; /* Modifié de 20px à 4px pour des coins moins arrondis */
+            transition: background-color 0.3s;
+        }
+        button:hover:not(:disabled) {
+            background-color: #2980b9;
+            cursor: pointer;
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .output {
+            flex-grow: 1;
+            border: 1px solid #bdc3c7;
+            padding: 8px;
+            overflow-y: auto;
+            font-family: 'Roboto Mono', monospace;
+            font-size: 11px;
+            background-color: #ecf0f1;
+            color: #34495e;
+            margin-top: 8px;
+            border-radius: 4px;
+        }
+        .send-message {
+            flex-grow: 1;
+            margin-right: 8px;
+            background-color: #ffffff;
+            color: #333;
+            border: 1px solid #bdc3c7;
+        }
+        .button-group {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .port-group {
+            display: flex;
+            align-items: center;
+        }
+        .input-group {
+            display: flex;
+            align-items: center;
+            margin-top: 8px;
+        }
+        .disconnect-button {
+            background-color: #e74c3c;
+        }
+        .disconnect-button:hover {
+            background-color: #c0392b !important;
+        }
+        .connect-button {
+            background-color: #27ae60;
+        }
+        .connect-button:hover {
+            background-color: #219653;
+        }
+        .port-info {
+            font-size: 12px;
+            margin-left: 10px;
+            color: #2c3e50;
+        }
+    </style>
+</head>
+<body>
+    <h1>Web Serial Monitor - Dual Terminal</h1>
+    <div class="terminal-container">
+        <div id="terminal1" class="terminal"></div>
+        <div id="terminal2" class="terminal"></div>
+    </div>
+
+    <script>
+        class SerialTerminal {
+            constructor(containerId) {
+                this.container = document.getElementById(containerId);
+                this.port = null;
+                this.reader = null;
+                this.writer = null;
+                this.keepReading = false;
+                this.portInfo = null;
+
+                this.render();
+                this.attachEventListeners();
+            }
+
+            render() {
+                this.container.innerHTML = `
+                    <div class="button-group">
+                        <div class="port-group">
+                            <button class="request-port-button">Port</button>
+                            <span class="port-info"></span>
+                        </div>
+                        <button class="connect-button" disabled>Connect</button>
+                    </div>
+                    <div class="output"></div>
+                    <div class="input-group">
+                        <input type="text" class="send-message" placeholder="Enter your message">
+                        <button class="send-button" disabled>Send</button>
+                    </div>
+                `;
+
+                this.requestPortButton = this.container.querySelector('.request-port-button');
+                this.connectButton = this.container.querySelector('.connect-button');
+                this.output = this.container.querySelector('.output');
+                this.sendMessage = this.container.querySelector('.send-message');
+                this.sendButton = this.container.querySelector('.send-button');
+                this.portInfo = this.container.querySelector('.port-info');
+            }
+
+            attachEventListeners() {
+                this.requestPortButton.addEventListener('click', () => this.requestPort());
+                this.connectButton.addEventListener('click', () => this.toggleConnection());
+                this.sendButton.addEventListener('click', () => this.sendSerialData());
+                this.sendMessage.addEventListener('keypress', (event) => {
+                    if (event.key === 'Enter') {
+                        event.preventDefault();
+                        this.sendSerialData();
+                    }
+                });
+            }
+
+            async requestPort() {
+                try {
+                    this.port = await navigator.serial.requestPort();
+                    this.connectButton.disabled = false;
+                    const portInfo = this.port.getInfo();
+                    let portName = 'Serial Port';
+                    
+                    if (portInfo.usbVendorId && portInfo.usbProductId) {
+                        portName = `VID:${portInfo.usbVendorId.toString(16).padStart(4, '0')} ` +
+                                   `PID:${portInfo.usbProductId.toString(16).padStart(4, '0')}`;
+                    }
+                    
+                    if (portInfo.usbManufacturer || portInfo.usbProduct) {
+                        portName += ` (${portInfo.usbManufacturer || ''} ${portInfo.usbProduct || ''})`.trim();
+                    }
+                    
+                    this.portInfo.textContent = portName;
+                } catch (error) {
+                    console.error('Error requesting port:', error);
+                    alert('Error requesting access to the serial port.');
+                }
+            }
+
+            async toggleConnection() {
+                if (this.port && this.port.readable) {
+                    await this.disconnectFromPort();
+                } else {
+                    await this.connectToPort();
+                }
+            }
+
+            async connectToPort() {
+                if (!this.port) {
+                    alert('Please request access to a port first.');
+                    return;
+                }
+
+                try {
+                    await this.port.open({ baudRate: 9600 });
+                    this.connectButton.textContent = 'Disconnect';
+                    this.connectButton.classList.remove('connect-button');
+                    this.connectButton.classList.add('disconnect-button');
+                    this.sendButton.disabled = false;
+                    this.readSerialData();
+                } catch (error) {
+                    console.error('Error connecting:', error);
+                    alert('Error connecting to the serial port.');
+                }
+            }
+
+            async disconnectFromPort() {
+                if (this.port) {
+                    this.keepReading = false;
+                    try {
+                        if (this.reader) {
+                            await this.reader.cancel();
+                        }
+                        if (this.writer) {
+                            await this.writer.close();
+                        }
+                        await this.port.close();
+                    } catch (error) {
+                        console.error('Error disconnecting:', error);
+                    } finally {
+                        this.connectButton.textContent = 'Connect';
+                        this.connectButton.classList.remove('disconnect-button');
+                        this.connectButton.classList.add('connect-button');
+                        this.sendButton.disabled = true;
+                        this.output.innerHTML += '<br><span style="color: #e74c3c;">Disconnected from serial port.</span><br>';
+                    }
+                }
+            }
+
+            async readSerialData() {
+                this.keepReading = true;
+                let buffer = '';
+                while (this.port.readable && this.keepReading) {
+                    this.reader = this.port.readable.getReader();
+                    try {
+                        while (true) {
+                            const { value, done } = await this.reader.read();
+                            if (done) {
+                                break;
+                            }
+                            const decodedValue = new TextDecoder().decode(value);
+                            buffer += decodedValue;
+                            
+                            let lines = buffer.split(/\r\n|\n/);
+                            buffer = lines.pop() || '';
+                            
+                            for (let line of lines) {
+                                this.output.innerHTML += `<span style="color: #27ae60;">${line}</span><br>`;
+                            }
+                            
+                            this.output.scrollTop = this.output.scrollHeight;
+                        }
+                    } catch (error) {
+                        console.error('Error reading:', error);
+                    } finally {
+                        this.reader.releaseLock();
+                    }
+                }
+                if (buffer) {
+                    this.output.innerHTML += `<span style="color: #27ae60;">${buffer}</span><br>`;
+                    this.output.scrollTop = this.output.scrollHeight;
+                }
+            }
+
+            async sendSerialData() {
+                if (!this.port || !this.port.writable) {
+                    alert('Please connect to a serial port first.');
+                    return;
+                }
+
+                const message = this.sendMessage.value.trim();
+                if (message) {
+                    this.writer = this.port.writable.getWriter();
+                    const data = new TextEncoder().encode(message + '\n');
+                    await this.writer.write(data);
+                    this.writer.releaseLock();
+                    
+                    this.output.innerHTML += `<span style="color: #3498db;">Sent: ${message}</span><br>`;
+                    this.output.scrollTop = this.output.scrollHeight;
+                    this.sendMessage.value = '';
+                }
+            }
+        }
+
+        // Initialization
+        if ('serial' in navigator) {
+            const terminal1 = new SerialTerminal('terminal1');
+            const terminal2 = new SerialTerminal('terminal2');
+        } else {
+            alert("Your browser doesn't support the Web Serial API.");
+        }
+    </script>
+</body>
+</html>
