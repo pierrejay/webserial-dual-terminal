@@ -105,10 +105,67 @@
             margin-left: 10px;
             color: #2c3e50;
         }
+
+        body.dark-mode {
+            background-color: #1a1a1a;
+            color: #f0f0f0;
+        }
+
+        body.dark-mode h1 {
+            color: #f0f0f0;
+        }
+
+        body.dark-mode .terminal {
+            background-color: #2a2a2a;
+            box-shadow: 0 2px 4px rgba(255, 255, 255, 0.1);
+        }
+
+        body.dark-mode .output {
+            background-color: #333333;
+            color: #f0f0f0;
+            border-color: #4a4a4a;
+        }
+
+        body.dark-mode .send-message {
+            background-color: #2a2a2a;
+            color: #f0f0f0;
+            border-color: #4a4a4a;
+        }
+
+        body.dark-mode .port-info {
+            color: #f0f0f0;
+        }
+
+        #dark-mode-toggle {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background-color: transparent;
+            color: #333333;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            transition: color 0.3s;
+            padding: 5px;
+            border-radius: 50%;
+        }
+
+        #dark-mode-toggle:hover {
+            background-color: rgba(0, 0, 0, 0.1);
+        }
+
+        body.dark-mode #dark-mode-toggle {
+            color: #f0f0f0;
+        }
+
+        body.dark-mode #dark-mode-toggle:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
     </style>
 </head>
 <body>
     <h1>Web Serial Monitor - Dual Terminal</h1>
+    <button id="dark-mode-toggle" aria-label="Basculer le mode sombre">☀️</button>
     <div class="terminal-container">
         <div id="terminal1" class="terminal"></div>
         <div id="terminal2" class="terminal"></div>
@@ -292,12 +349,29 @@
             }
         }
 
-        // Initialization
+        // Modification de la fonction pour gérer le mode sombre
+        function toggleDarkMode() {
+            document.body.classList.toggle('dark-mode');
+            const darkModeButton = document.getElementById('dark-mode-toggle');
+            if (document.body.classList.contains('dark-mode')) {
+                darkModeButton.textContent = '🌙';
+                darkModeButton.setAttribute('aria-label', 'Activer le mode clair');
+            } else {
+                darkModeButton.textContent = '☀️';
+                darkModeButton.setAttribute('aria-label', 'Activer le mode sombre');
+            }
+        }
+
+        // Initialisation
         if ('serial' in navigator) {
             const terminal1 = new SerialTerminal('terminal1');
             const terminal2 = new SerialTerminal('terminal2');
+
+            // Ajout de l'écouteur d'événements pour le bouton de mode sombre
+            const darkModeToggle = document.getElementById('dark-mode-toggle');
+            darkModeToggle.addEventListener('click', toggleDarkMode);
         } else {
-            alert("Your browser doesn't support the Web Serial API.");
+            alert("Votre navigateur ne prend pas en charge l'API Web Serial.");
         }
     </script>
 </body>
