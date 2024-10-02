@@ -59,10 +59,12 @@
             border: 1px solid #bdc3c7;
             padding: 8px;
             overflow-y: auto;
+            overflow-x: auto;
+            white-space: nowrap;
             font-family: 'Roboto Mono', monospace;
             font-size: 11px;
             background-color: #ecf0f1;
-            color: #333333; /* Couleur du texte en mode clair */
+            color: #333333;
             margin-top: 8px;
             border-radius: 4px;
         }
@@ -171,6 +173,64 @@
             font-size: 0.8em;
             margin-right: 5px;
         }
+
+        .control-buttons {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 8px;
+        }
+
+        .control-buttons button {
+            font-size: 16px;
+            padding: 4px 8px;
+        }
+
+        .autoscroll-container {
+            display: flex;
+            align-items: center;
+        }
+
+        .autoscroll-container input[type="checkbox"] {
+            margin-right: 5px;
+            accent-color: #808080; /* Ajout de cette ligne pour changer la couleur de fond en gris */
+        }
+
+        .autoscroll-container label {
+            font-size: 12px;
+            user-select: none;
+        }
+
+        /* Supprimez tous les styles personnalisés pour la case à cocher */
+
+        .clear-button {
+            background-color: #e0e0e0;
+            color: #333;
+            padding: 6px 10px;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+
+        .clear-button:hover {
+            background-color: #c0c0c0 !important; /* Ajout de !important */
+        }
+
+        /* Supprimez ou commentez cette règle */
+        /*
+        button:hover:not(:disabled):not(.clear-button) {
+            background-color: #2980b9;
+            cursor: pointer;
+        }
+        */
+
+        body.dark-mode .clear-button {
+            background-color: #4a4a4a;
+            color: #f0f0f0;
+        }
+
+        body.dark-mode .clear-button:hover {
+            background-color: #5a5a5a !important; /* Ajout de !important */
+        }
     </style>
 </head>
 <body>
@@ -190,6 +250,7 @@
                 this.writer = null;
                 this.keepReading = false;
                 this.portInfo = null;
+                this.autoScroll = true;
 
                 this.render();
                 this.attachEventListeners();
@@ -205,6 +266,13 @@
                         <button class="connect-button" disabled>Connect</button>
                     </div>
                     <div class="output"></div>
+                    <div class="control-buttons">
+                        <div class="autoscroll-container">
+                            <input type="checkbox" id="${this.container.id}-autoscroll" checked>
+                            <label for="${this.container.id}-autoscroll">Autoscroll</label>
+                        </div>
+                        <button class="clear-button" title="Effacer le terminal">🗑️</button>
+                    </div>
                     <div class="input-group">
                         <input type="text" class="send-message" placeholder="Enter your message">
                         <button class="send-button" disabled>Send</button>
@@ -217,6 +285,8 @@
                 this.sendMessage = this.container.querySelector('.send-message');
                 this.sendButton = this.container.querySelector('.send-button');
                 this.portInfo = this.container.querySelector('.port-info');
+                this.clearButton = this.container.querySelector('.clear-button');
+                this.autoScrollCheckbox = this.container.querySelector(`#${this.container.id}-autoscroll`);
             }
 
             attachEventListeners() {
@@ -229,6 +299,8 @@
                         this.sendSerialData();
                     }
                 });
+                this.clearButton.addEventListener('click', () => this.clearTerminal());
+                this.autoScrollCheckbox.addEventListener('change', () => this.toggleAutoScroll());
             }
 
             async requestPort() {
@@ -299,7 +371,9 @@
                         this.connectButton.classList.remove('disconnect-button');
                         this.connectButton.classList.add('connect-button');
                         this.sendButton.disabled = true;
-                        this.output.innerHTML += '<br><span style="color: #e74c3c;">Disconnected from serial port.</span><br>';
+                        const timestamp = this.getTimestamp();
+                        this.output.innerHTML += `<br><span class="timestamp">${timestamp}</span><span style="color: #e74c3c;">Disconnected from serial port.</span><br><br>`;
+                        this.scrollToBottom();
                     }
                 }
             }
@@ -331,7 +405,7 @@
                                 this.output.innerHTML += `<span class="timestamp">${timestamp}</span>${line}<br>`;
                             }
                             
-                            this.output.scrollTop = this.output.scrollHeight;
+                            this.scrollToBottom();
                         }
                     } catch (error) {
                         console.error('Error reading:', error);
@@ -342,7 +416,7 @@
                 if (buffer) {
                     const timestamp = this.getTimestamp();
                     this.output.innerHTML += `<span class="timestamp">${timestamp}</span>${buffer}<br>`;
-                    this.output.scrollTop = this.output.scrollHeight;
+                    this.scrollToBottom();
                 }
             }
 
@@ -361,8 +435,22 @@
                     
                     const timestamp = this.getTimestamp();
                     this.output.innerHTML += `<span class="timestamp">${timestamp}</span><span class="sent">Sent: ${message}</span><br>`;
-                    this.output.scrollTop = this.output.scrollHeight;
+                    this.scrollToBottom();
                     this.sendMessage.value = '';
+                }
+            }
+
+            clearTerminal() {
+                this.output.innerHTML = '';
+            }
+
+            toggleAutoScroll() {
+                this.autoScroll = this.autoScrollCheckbox.checked;
+            }
+
+            scrollToBottom() {
+                if (this.autoScroll) {
+                    this.output.scrollTop = this.output.scrollHeight;
                 }
             }
         }
