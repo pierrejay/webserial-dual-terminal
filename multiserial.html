@@ -263,6 +263,91 @@
         body.dark-mode .control-buttons select {
             background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3E%3Cpath fill='%23f0f0f0' d='M0 2l4 4 4-4z'/%3E%3C/svg%3E");
         }
+
+        .port-settings {
+            display: flex;
+            gap: 5px;
+            margin-top: 5px;
+        }
+
+        .port-settings select {
+            font-size: 12px;
+            padding: 2px 5px;
+        }
+
+        .port-settings select,
+        .control-buttons select {
+            font-size: 12px;
+            padding: 4px 8px;
+            background-color: #e0e0e0;
+            color: #333;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            padding-right: 20px;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3E%3Cpath fill='%23333' d='M0 2l4 4 4-4z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 8px center;
+        }
+
+        .port-settings select:hover,
+        .control-buttons select:hover {
+            background-color: #d0d0d0;
+        }
+
+        body.dark-mode .port-settings select,
+        body.dark-mode .control-buttons select {
+            background-color: #4a4a4a;
+            color: #f0f0f0;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3E%3Cpath fill='%23f0f0f0' d='M0 2l4 4 4-4z'/%3E%3C/svg%3E");
+        }
+
+        body.dark-mode .port-settings select:hover,
+        body.dark-mode .control-buttons select:hover {
+            background-color: #5a5a5a;
+        }
+
+        .terminal-name {
+            font-size: 16px;
+            color: #444;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+        }
+
+        .terminal-name-text {
+            background: none;
+            border: none;
+            font-size: 16px;
+            color: #444;
+            font-weight: normal;
+            padding: 2px 5px;
+            cursor: text;
+            width: 100%;
+        }
+
+        .terminal-name-text:hover {
+            background-color: rgba(0, 0, 0, 0.05);
+            border-radius: 3px;
+        }
+
+        .terminal-name-text:focus {
+            outline: none;
+            background-color: rgba(0, 0, 0, 0.05);
+            border-radius: 3px;
+        }
+
+        body.dark-mode .terminal-name-text {
+            color: #ccc;
+        }
+
+        body.dark-mode .terminal-name-text:hover,
+        body.dark-mode .terminal-name-text:focus {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
     </style>
 </head>
 <body>
@@ -284,6 +369,11 @@
                 this.portInfo = null;
                 this.autoScroll = true;
                 this.displayFormat = 'ASCII';
+                this.baudRate = 9600;
+                this.dataBits = 8;
+                this.stopBits = 1;
+                this.parity = 'none';
+                this.terminalName = `Terminal ${containerId.slice(-1)}`;
 
                 this.render();
                 this.attachEventListeners();
@@ -291,10 +381,34 @@
 
             render() {
                 this.container.innerHTML = `
+                    <div class="terminal-name">
+                        <input type="text" class="terminal-name-text" value="${this.terminalName}">
+                    </div>
                     <div class="button-group">
                         <div class="port-group">
                             <button class="request-port-button">Port</button>
-                            <span class="port-info"></span>
+                        </div>
+                        <div class="port-settings">
+                            <select class="baud-rate">
+                                <option value="9600">9600</option>
+                                <option value="19200">19200</option>
+                                <option value="38400">38400</option>
+                                <option value="57600">57600</option>
+                                <option value="115200">115200</option>
+                            </select>
+                            <select class="data-bits">
+                                <option value="8">8</option>
+                                <option value="7">7</option>
+                            </select>
+                            <select class="parity">
+                                <option value="none">N</option>
+                                <option value="even">E</option>
+                                <option value="odd">O</option>
+                            </select>
+                            <select class="stop-bits">
+                                <option value="1">1</option>
+                                <option value="2">2</option>
+                            </select>
                         </div>
                         <button class="connect-button" disabled>Connect</button>
                     </div>
@@ -328,6 +442,11 @@
                 this.clearButton = this.container.querySelector('.clear-button');
                 this.autoScrollCheckbox = this.container.querySelector(`#${this.container.id}-autoscroll`);
                 this.formatSelect = this.container.querySelector('.format-select');
+                this.baudRateSelect = this.container.querySelector('.baud-rate');
+                this.dataBitsSelect = this.container.querySelector('.data-bits');
+                this.stopBitsSelect = this.container.querySelector('.stop-bits');
+                this.paritySelect = this.container.querySelector('.parity');
+                this.terminalNameInput = this.container.querySelector('.terminal-name-text');
             }
 
             attachEventListeners() {
@@ -343,25 +462,24 @@
                 this.clearButton.addEventListener('click', () => this.clearTerminal());
                 this.autoScrollCheckbox.addEventListener('change', () => this.toggleAutoScroll());
                 this.formatSelect.addEventListener('change', () => this.changeDisplayFormat());
+                this.baudRateSelect.addEventListener('change', () => this.updatePortSettings());
+                this.dataBitsSelect.addEventListener('change', () => this.updatePortSettings());
+                this.stopBitsSelect.addEventListener('change', () => this.updatePortSettings());
+                this.paritySelect.addEventListener('change', () => this.updatePortSettings());
+                this.terminalNameInput.addEventListener('blur', () => this.saveTerminalName());
+                this.terminalNameInput.addEventListener('keypress', (event) => {
+                    if (event.key === 'Enter') {
+                        event.preventDefault();
+                        this.terminalNameInput.blur();
+                    }
+                });
             }
 
             async requestPort() {
                 try {
                     this.port = await navigator.serial.requestPort();
                     this.connectButton.disabled = false;
-                    const portInfo = this.port.getInfo();
-                    let portName = 'Serial Port';
-                    
-                    if (portInfo.usbVendorId && portInfo.usbProductId) {
-                        portName = `VID:${portInfo.usbVendorId.toString(16).padStart(4, '0')} ` +
-                                   `PID:${portInfo.usbProductId.toString(16).padStart(4, '0')}`;
-                    }
-                    
-                    if (portInfo.usbManufacturer || portInfo.usbProduct) {
-                        portName += ` (${portInfo.usbManufacturer || ''} ${portInfo.usbProduct || ''})`.trim();
-                    }
-                    
-                    this.portInfo.textContent = portName;
+                    // Supprimez ou commentez les lignes qui affichent les informations du port
                 } catch (error) {
                     console.error('Error requesting port:', error);
                     alert('Error requesting access to the serial port.');
@@ -383,7 +501,12 @@
                 }
 
                 try {
-                    await this.port.open({ baudRate: 9600 });
+                    await this.port.open({
+                        baudRate: this.baudRate,
+                        dataBits: this.dataBits,
+                        stopBits: this.stopBits,
+                        parity: this.parity
+                    });
                     this.connectButton.textContent = 'Disconnect';
                     this.connectButton.classList.remove('connect-button');
                     this.connectButton.classList.add('disconnect-button');
@@ -472,14 +595,24 @@
 
                 const message = this.sendMessage.value.trim();
                 if (message) {
+                    let dataToSend = message;
+                    let displayMessage = message;
+
+                    if (this.displayFormat === 'hex') {
+                        dataToSend = this.asciiToHex(message);
+                        displayMessage = dataToSend;
+                    } else if (this.displayFormat === 'base64') {
+                        dataToSend = btoa(message);
+                        displayMessage = dataToSend;
+                    }
+
                     this.writer = this.port.writable.getWriter();
-                    const data = new TextEncoder().encode(message + '\n');
+                    const data = new TextEncoder().encode(dataToSend + '\n');
                     await this.writer.write(data);
                     this.writer.releaseLock();
                     
                     const timestamp = this.getTimestamp();
-                    const formattedMessage = this.formatContent(message);
-                    this.output.innerHTML += `<span class="timestamp">${timestamp}</span><span class="sent">Sent: ${formattedMessage}</span><br>`;
+                    this.output.innerHTML += `<span class="timestamp">${timestamp}</span><span class="sent" data-original="${message}" data-format="${this.displayFormat}">Sent: ${displayMessage}</span><br>`;
                     this.scrollToBottom();
                     this.sendMessage.value = '';
                 }
@@ -505,14 +638,20 @@
             }
 
             refreshOutput() {
-                // Convertir le contenu actuel au nouveau format
                 const lines = this.output.innerHTML.split('<br>');
                 this.output.innerHTML = '';
                 for (let line of lines) {
                     if (line.trim()) {
                         const [timestamp, content] = this.extractTimestampAndContent(line);
-                        const formattedContent = this.formatContent(content);
-                        this.output.innerHTML += `${timestamp}${formattedContent}<br>`;
+                        if (content.startsWith('<span class="sent"')) {
+                            const originalData = content.match(/data-original="(.*?)"/)[1];
+                            const originalFormat = content.match(/data-format="(.*?)"/)[1];
+                            const formattedSentContent = this.formatContent(originalData, this.displayFormat);
+                            this.output.innerHTML += `${timestamp}<span class="sent" data-original="${originalData}" data-format="${originalFormat}">Sent: ${formattedSentContent}</span><br>`;
+                        } else {
+                            const formattedContent = this.formatContent(content);
+                            this.output.innerHTML += `${timestamp}${formattedContent}<br>`;
+                        }
                     }
                 }
                 this.scrollToBottom();
@@ -525,26 +664,48 @@
                 return [timestamp, content];
             }
 
-            formatContent(content) {
-                if (this.displayFormat === 'hex') {
-                    // Convertir ASCII en hex, groupé par 2 caractères
-                    return content.split('').map(char => char.charCodeAt(0).toString(16).padStart(2, '0').toUpperCase()).join(' ');
-                } else if (this.displayFormat === 'base64') {
-                    // Convertir ASCII en base64
+            formatContent(content, format = this.displayFormat) {
+                if (format === 'hex') {
+                    return this.asciiToHex(content);
+                } else if (format === 'base64') {
                     return btoa(content);
                 } else {
-                    // ASCII : convertir hex en ASCII si nécessaire
-                    if (content.match(/^([0-9A-Fa-f]{2}\s)*[0-9A-Fa-f]{2}$/)) {
-                        return content.split(' ').map(hex => String.fromCharCode(parseInt(hex, 16))).join('');
+                    // ASCII
+                    if (/^[0-9A-Fa-f\s]+$/.test(content)) {
+                        return this.hexToAscii(content);
                     }
-                    // Convertir base64 en ASCII si nécessaire
                     try {
-                        return atob(content);
+                        const decoded = atob(content);
+                        // Vérifier si le décodage a produit du texte lisible
+                        if (/^[\x20-\x7E]+$/.test(decoded)) {
+                            return decoded;
+                        }
                     } catch {
-                        // Si ce n'est pas du base64 valide, retourner le contenu tel quel
-                        return content;
+                        // Si ce n'est pas du base64 valide, on ne fait rien
                     }
+                    // Si la conversion a échoué ou n'était pas nécessaire, retourner le contenu original
+                    return content;
                 }
+            }
+
+            updatePortSettings() {
+                this.baudRate = parseInt(this.baudRateSelect.value);
+                this.dataBits = parseInt(this.dataBitsSelect.value);
+                this.stopBits = parseInt(this.stopBitsSelect.value);
+                this.parity = this.paritySelect.value;
+            }
+
+            saveTerminalName() {
+                this.terminalName = this.terminalNameInput.value.trim() || `Terminal ${this.container.id.slice(-1)}`;
+                this.terminalNameInput.value = this.terminalName;
+            }
+
+            asciiToHex(str) {
+                return str.split('').map(char => char.charCodeAt(0).toString(16).padStart(2, '0')).join(' ');
+            }
+
+            hexToAscii(hex) {
+                return hex.replace(/\s/g, '').match(/.{1,2}/g).map(byte => String.fromCharCode(parseInt(byte, 16))).join('');
             }
         }
 
