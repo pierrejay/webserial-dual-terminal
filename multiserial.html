@@ -462,10 +462,10 @@
                 this.clearButton.addEventListener('click', () => this.clearTerminal());
                 this.autoScrollCheckbox.addEventListener('change', () => this.toggleAutoScroll());
                 this.formatSelect.addEventListener('change', () => this.changeDisplayFormat());
-                this.baudRateSelect.addEventListener('change', () => this.updatePortSettings());
-                this.dataBitsSelect.addEventListener('change', () => this.updatePortSettings());
-                this.stopBitsSelect.addEventListener('change', () => this.updatePortSettings());
-                this.paritySelect.addEventListener('change', () => this.updatePortSettings());
+                this.baudRateSelect.addEventListener('change', () => this.handlePortSettingsChange());
+                this.dataBitsSelect.addEventListener('change', () => this.handlePortSettingsChange());
+                this.stopBitsSelect.addEventListener('change', () => this.handlePortSettingsChange());
+                this.paritySelect.addEventListener('change', () => this.handlePortSettingsChange());
                 this.terminalNameInput.addEventListener('blur', () => this.saveTerminalName());
                 this.terminalNameInput.addEventListener('keypress', (event) => {
                     if (event.key === 'Enter') {
@@ -479,7 +479,6 @@
                 try {
                     this.port = await navigator.serial.requestPort();
                     this.connectButton.disabled = false;
-                    // Supprimez ou commentez les lignes qui affichent les informations du port
                 } catch (error) {
                     console.error('Error requesting port:', error);
                     alert('Error requesting access to the serial port.');
@@ -496,7 +495,7 @@
 
             async connectToPort() {
                 if (!this.port) {
-                    alert('Please request access to a port first.');
+                    alert('Veuillez d\'abord demander l\'accès à un port.');
                     return;
                 }
 
@@ -507,14 +506,18 @@
                         stopBits: this.stopBits,
                         parity: this.parity
                     });
-                    this.connectButton.textContent = 'Disconnect';
+                    this.connectButton.textContent = 'Déconnecter';
                     this.connectButton.classList.remove('connect-button');
                     this.connectButton.classList.add('disconnect-button');
                     this.sendButton.disabled = false;
                     this.readSerialData();
+                    
+                    const timestamp = this.getTimestamp();
+                    this.output.innerHTML += `<span class="timestamp">${timestamp}</span><span style="color: #27ae60;">Connecté au port série.</span><br>`;
+                    this.scrollToBottom();
                 } catch (error) {
-                    console.error('Error connecting:', error);
-                    alert('Error connecting to the serial port.');
+                    console.error('Erreur de connexion:', error);
+                    alert('Erreur lors de la connexion au port série.');
                 }
             }
 
@@ -532,12 +535,9 @@
                     } catch (error) {
                         console.error('Error disconnecting:', error);
                     } finally {
-                        this.connectButton.textContent = 'Connect';
-                        this.connectButton.classList.remove('disconnect-button');
-                        this.connectButton.classList.add('connect-button');
-                        this.sendButton.disabled = true;
+                        this.resetConnection();
                         const timestamp = this.getTimestamp();
-                        this.output.innerHTML += `<br><span class="timestamp">${timestamp}</span><span style="color: #e74c3c;">Disconnected from serial port.</span><br><br>`;
+                        this.output.innerHTML += `<span class="timestamp">${timestamp}</span><span style="color: #e74c3c;">Déconnecté du port série.</span><br>`;
                         this.scrollToBottom();
                     }
                 }
@@ -595,27 +595,60 @@
 
                 const message = this.sendMessage.value.trim();
                 if (message) {
-                    let dataToSend = message;
-                    let displayMessage = message;
+                    let dataToSend;
+                    let displayMessage;
 
                     if (this.displayFormat === 'hex') {
-                        dataToSend = this.asciiToHex(message);
-                        displayMessage = dataToSend;
+                        if (this.isValidHex(message)) {
+                            dataToSend = this.hexToBytes(message);
+                            // Formater l'affichage en groupes de 2 bytes sans ajouter de 0 devant
+                            displayMessage = Array.from(dataToSend)
+                                .map(byte => byte.toString(16).toUpperCase())
+                                .join(' ');
+                        } else {
+                            alert('Invalid hexadecimal input');
+                            return;
+                        }
                     } else if (this.displayFormat === 'base64') {
-                        dataToSend = btoa(message);
-                        displayMessage = dataToSend;
+                        if (this.isValidBase64(message)) {
+                            dataToSend = this.base64ToBytes(message);
+                            displayMessage = message;
+                        } else {
+                            alert('Invalid base64 input');
+                            return;
+                        }
+                    } else {
+                        // ASCII
+                        dataToSend = new TextEncoder().encode(message);
+                        displayMessage = message;
                     }
 
                     this.writer = this.port.writable.getWriter();
-                    const data = new TextEncoder().encode(dataToSend + '\n');
-                    await this.writer.write(data);
+                    await this.writer.write(dataToSend);
                     this.writer.releaseLock();
                     
                     const timestamp = this.getTimestamp();
-                    this.output.innerHTML += `<span class="timestamp">${timestamp}</span><span class="sent" data-original="${message}" data-format="${this.displayFormat}">Sent: ${displayMessage}</span><br>`;
+                    this.output.innerHTML += `<span class="timestamp">${timestamp}</span><span class="sent">Sent: ${displayMessage}</span><br>`;
                     this.scrollToBottom();
                     this.sendMessage.value = '';
                 }
+            }
+
+            isValidHex(str) {
+                return /^[0-9A-Fa-f]+$/.test(str);
+            }
+
+            isValidBase64(str) {
+                return /^[A-Za-z0-9+/]*={0,2}$/.test(str);
+            }
+
+            hexToBytes(hex) {
+                return new Uint8Array(hex.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+            }
+
+            base64ToBytes(base64) {
+                const binString = atob(base64);
+                return Uint8Array.from(binString, (m) => m.codePointAt(0));
             }
 
             clearTerminal() {
@@ -634,57 +667,24 @@
 
             changeDisplayFormat() {
                 this.displayFormat = this.formatSelect.value;
-                this.refreshOutput();
+                // Ne pas appeler refreshOutput() ici
             }
 
-            refreshOutput() {
-                const lines = this.output.innerHTML.split('<br>');
-                this.output.innerHTML = '';
-                for (let line of lines) {
-                    if (line.trim()) {
-                        const [timestamp, content] = this.extractTimestampAndContent(line);
-                        if (content.startsWith('<span class="sent"')) {
-                            const originalData = content.match(/data-original="(.*?)"/)[1];
-                            const originalFormat = content.match(/data-format="(.*?)"/)[1];
-                            const formattedSentContent = this.formatContent(originalData, this.displayFormat);
-                            this.output.innerHTML += `${timestamp}<span class="sent" data-original="${originalData}" data-format="${originalFormat}">Sent: ${formattedSentContent}</span><br>`;
-                        } else {
-                            const formattedContent = this.formatContent(content);
-                            this.output.innerHTML += `${timestamp}${formattedContent}<br>`;
-                        }
+            formatContent(content) {
+                if (this.displayFormat === 'hex') {
+                    return Array.from(new TextEncoder().encode(content))
+                        .map(byte => byte.toString(16).padStart(2, '0'))
+                        .join(' ')
+                        .toUpperCase();
+                } else if (this.displayFormat === 'base64') {
+                    let base64 = btoa(content);
+                    // Ajouter le padding si nécessaire
+                    while (base64.length % 4) {
+                        base64 += '=';
                     }
-                }
-                this.scrollToBottom();
-            }
-
-            extractTimestampAndContent(line) {
-                const timestampMatch = line.match(/<span class="timestamp">(.*?)<\/span>/);
-                const timestamp = timestampMatch ? timestampMatch[0] : '';
-                const content = line.replace(/<span class="timestamp">.*?<\/span>/, '').trim();
-                return [timestamp, content];
-            }
-
-            formatContent(content, format = this.displayFormat) {
-                if (format === 'hex') {
-                    return this.asciiToHex(content);
-                } else if (format === 'base64') {
-                    return btoa(content);
+                    return base64;
                 } else {
-                    // ASCII
-                    if (/^[0-9A-Fa-f\s]+$/.test(content)) {
-                        return this.hexToAscii(content);
-                    }
-                    try {
-                        const decoded = atob(content);
-                        // Vérifier si le décodage a produit du texte lisible
-                        if (/^[\x20-\x7E]+$/.test(decoded)) {
-                            return decoded;
-                        }
-                    } catch {
-                        // Si ce n'est pas du base64 valide, on ne fait rien
-                    }
-                    // Si la conversion a échoué ou n'était pas nécessaire, retourner le contenu original
-                    return content;
+                    return content; // ASCII, pas de conversion
                 }
             }
 
@@ -705,7 +705,36 @@
             }
 
             hexToAscii(hex) {
-                return hex.replace(/\s/g, '').match(/.{1,2}/g).map(byte => String.fromCharCode(parseInt(byte, 16))).join('');
+                // Supprimer tous les espaces et diviser en paires de caractères
+                const pairs = hex.replace(/\s/g, '').match(/.{2}/g) || [];
+                return pairs.map(pair => {
+                    // Convertir chaque paire en nombre, puis en caractère ASCII
+                    return String.fromCharCode(parseInt(pair, 16));
+                }).join('');
+            }
+
+            async handlePortSettingsChange() {
+                if (this.port && this.port.readable) {
+                    await this.disconnectFromPort();
+                }
+                this.resetConnection();
+                this.updatePortSettings();
+                const timestamp = this.getTimestamp();
+                this.output.innerHTML += `<br><span class="timestamp">${timestamp}</span><span style="color: #3498db;">Paramètres du port mis à jour. Veuillez sélectionner un port et vous reconnecter.</span><br><br>`;
+                this.scrollToBottom();
+            }
+
+            resetConnection() {
+                this.port = null;
+                this.reader = null;
+                this.writer = null;
+                this.keepReading = false;
+                this.connectButton.disabled = true;
+                this.connectButton.textContent = 'Connect';
+                this.connectButton.classList.remove('disconnect-button');
+                this.connectButton.classList.add('connect-button');
+                this.sendButton.disabled = true;
+                this.requestPortButton.disabled = false;
             }
         }
 
