@@ -495,7 +495,7 @@
 
             async connectToPort() {
                 if (!this.port) {
-                    alert('Veuillez d\'abord demander l\'accès à un port.');
+                    alert('Please request access to a port first.');
                     return;
                 }
 
@@ -506,18 +506,18 @@
                         stopBits: this.stopBits,
                         parity: this.parity
                     });
-                    this.connectButton.textContent = 'Déconnecter';
+                    this.connectButton.textContent = 'Disconnect';
                     this.connectButton.classList.remove('connect-button');
                     this.connectButton.classList.add('disconnect-button');
                     this.sendButton.disabled = false;
                     this.readSerialData();
                     
                     const timestamp = this.getTimestamp();
-                    this.output.innerHTML += `<span class="timestamp">${timestamp}</span><span style="color: #27ae60;">Connecté au port série.</span><br>`;
+                    this.output.innerHTML += `<span class="timestamp">${timestamp}</span><span style="color: #27ae60;">Connected to serial port.</span><br>`;
                     this.scrollToBottom();
                 } catch (error) {
-                    console.error('Erreur de connexion:', error);
-                    alert('Erreur lors de la connexion au port série.');
+                    console.error('Connection error:', error);
+                    alert('Error connecting to the serial port.');
                 }
             }
 
@@ -537,7 +537,7 @@
                     } finally {
                         this.resetConnection();
                         const timestamp = this.getTimestamp();
-                        this.output.innerHTML += `<span class="timestamp">${timestamp}</span><span style="color: #e74c3c;">Déconnecté du port série.</span><br>`;
+                        this.output.innerHTML += `<span class="timestamp">${timestamp}</span><span style="color: #e74c3c;">Disconnected from serial port.</span><br>`;
                         this.scrollToBottom();
                     }
                 }
@@ -720,7 +720,7 @@
                 this.resetConnection();
                 this.updatePortSettings();
                 const timestamp = this.getTimestamp();
-                this.output.innerHTML += `<br><span class="timestamp">${timestamp}</span><span style="color: #3498db;">Paramètres du port mis à jour. Veuillez sélectionner un port et vous reconnecter.</span><br><br>`;
+                this.output.innerHTML += `<span class="timestamp">${timestamp}</span><span style="color: #3498db;">Port settings updated. Please select a port and reconnect.</span><br>`;
                 this.scrollToBottom();
             }
 
@@ -738,29 +738,29 @@
             }
         }
 
-        // Modification de la fonction pour gérer le mode sombre
+        // Function to handle dark mode
         function toggleDarkMode() {
             document.body.classList.toggle('dark-mode');
             const darkModeButton = document.getElementById('dark-mode-toggle');
             if (document.body.classList.contains('dark-mode')) {
                 darkModeButton.textContent = '🌙';
-                darkModeButton.setAttribute('aria-label', 'Activer le mode clair');
+                darkModeButton.setAttribute('aria-label', 'Activate light mode');
             } else {
                 darkModeButton.textContent = '☀️';
-                darkModeButton.setAttribute('aria-label', 'Activer le mode sombre');
+                darkModeButton.setAttribute('aria-label', 'Activate dark mode');
             }
         }
 
-        // Initialisation
+        // Initialization
         if ('serial' in navigator) {
             const terminal1 = new SerialTerminal('terminal1');
             const terminal2 = new SerialTerminal('terminal2');
 
-            // Ajout de l'écouteur d'événements pour le bouton de mode sombre
+            // Add event listener for dark mode toggle button
             const darkModeToggle = document.getElementById('dark-mode-toggle');
             darkModeToggle.addEventListener('click', toggleDarkMode);
         } else {
-            alert("Votre navigateur ne prend pas en charge l'API Web Serial.");
+            alert("Your browser doesn't support the Web Serial API.");
         }
     </script>
 </body>
