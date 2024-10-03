@@ -181,9 +181,31 @@
             margin-top: 8px;
         }
 
-        .control-buttons button {
-            font-size: 16px;
+        .control-buttons-right {
+            display: flex;
+            align-items: center;
+            gap: 8px; /* Ajoute un espace entre le select et le bouton poubelle */
+        }
+
+        .control-buttons button,
+        .control-buttons select {
+            font-size: 12px;
             padding: 4px 8px;
+            background-color: #e0e0e0;
+            color: #333;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .control-buttons select {
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            padding-right: 20px;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3E%3Cpath fill='%23333' d='M0 2l4 4 4-4z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 8px center;
         }
 
         .autoscroll-container {
@@ -205,9 +227,10 @@
         .clear-button {
             background-color: #e0e0e0;
             color: #333;
-            padding: 6px 10px;
+            padding: 4px 8px; /* Modifié pour correspondre au select */
             border-radius: 4px;
             transition: background-color 0.3s;
+            font-size: 12px; /* Ajouté pour s'assurer que la taille de la police est la même */
         }
 
         .clear-button:hover {
@@ -230,6 +253,16 @@
         body.dark-mode .clear-button:hover {
             background-color: #5a5a5a !important; /* Ajout de !important */
         }
+
+        body.dark-mode .control-buttons button,
+        body.dark-mode .control-buttons select {
+            background-color: #4a4a4a;
+            color: #f0f0f0;
+        }
+
+        body.dark-mode .control-buttons select {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3E%3Cpath fill='%23f0f0f0' d='M0 2l4 4 4-4z'/%3E%3C/svg%3E");
+        }
     </style>
 </head>
 <body>
@@ -250,6 +283,7 @@
                 this.keepReading = false;
                 this.portInfo = null;
                 this.autoScroll = true;
+                this.displayFormat = 'ASCII';
 
                 this.render();
                 this.attachEventListeners();
@@ -270,7 +304,14 @@
                             <input type="checkbox" id="${this.container.id}-autoscroll" checked>
                             <label for="${this.container.id}-autoscroll">Autoscroll</label>
                         </div>
-                        <button class="clear-button" title="Effacer le terminal">🗑️</button>
+                        <div class="control-buttons-right">
+                            <select class="format-select">
+                                <option value="ASCII">ASCII</option>
+                                <option value="hex">hex</option>
+                                <option value="base64">base64</option>
+                            </select>
+                            <button class="clear-button" title="Effacer le terminal">🗑️</button>
+                        </div>
                     </div>
                     <div class="input-group">
                         <input type="text" class="send-message" placeholder="Enter your message">
@@ -286,6 +327,7 @@
                 this.portInfo = this.container.querySelector('.port-info');
                 this.clearButton = this.container.querySelector('.clear-button');
                 this.autoScrollCheckbox = this.container.querySelector(`#${this.container.id}-autoscroll`);
+                this.formatSelect = this.container.querySelector('.format-select');
             }
 
             attachEventListeners() {
@@ -300,6 +342,7 @@
                 });
                 this.clearButton.addEventListener('click', () => this.clearTerminal());
                 this.autoScrollCheckbox.addEventListener('change', () => this.toggleAutoScroll());
+                this.formatSelect.addEventListener('change', () => this.changeDisplayFormat());
             }
 
             async requestPort() {
@@ -401,7 +444,8 @@
                             
                             for (let line of lines) {
                                 const timestamp = this.getTimestamp();
-                                this.output.innerHTML += `<span class="timestamp">${timestamp}</span>${line}<br>`;
+                                const formattedLine = this.formatContent(line);
+                                this.output.innerHTML += `<span class="timestamp">${timestamp}</span>${formattedLine}<br>`;
                             }
                             
                             this.scrollToBottom();
@@ -414,7 +458,8 @@
                 }
                 if (buffer) {
                     const timestamp = this.getTimestamp();
-                    this.output.innerHTML += `<span class="timestamp">${timestamp}</span>${buffer}<br>`;
+                    const formattedBuffer = this.formatContent(buffer);
+                    this.output.innerHTML += `<span class="timestamp">${timestamp}</span>${formattedBuffer}<br>`;
                     this.scrollToBottom();
                 }
             }
@@ -433,7 +478,8 @@
                     this.writer.releaseLock();
                     
                     const timestamp = this.getTimestamp();
-                    this.output.innerHTML += `<span class="timestamp">${timestamp}</span><span class="sent">Sent: ${message}</span><br>`;
+                    const formattedMessage = this.formatContent(message);
+                    this.output.innerHTML += `<span class="timestamp">${timestamp}</span><span class="sent">Sent: ${formattedMessage}</span><br>`;
                     this.scrollToBottom();
                     this.sendMessage.value = '';
                 }
@@ -450,6 +496,54 @@
             scrollToBottom() {
                 if (this.autoScroll) {
                     this.output.scrollTop = this.output.scrollHeight;
+                }
+            }
+
+            changeDisplayFormat() {
+                this.displayFormat = this.formatSelect.value;
+                this.refreshOutput();
+            }
+
+            refreshOutput() {
+                // Convertir le contenu actuel au nouveau format
+                const lines = this.output.innerHTML.split('<br>');
+                this.output.innerHTML = '';
+                for (let line of lines) {
+                    if (line.trim()) {
+                        const [timestamp, content] = this.extractTimestampAndContent(line);
+                        const formattedContent = this.formatContent(content);
+                        this.output.innerHTML += `${timestamp}${formattedContent}<br>`;
+                    }
+                }
+                this.scrollToBottom();
+            }
+
+            extractTimestampAndContent(line) {
+                const timestampMatch = line.match(/<span class="timestamp">(.*?)<\/span>/);
+                const timestamp = timestampMatch ? timestampMatch[0] : '';
+                const content = line.replace(/<span class="timestamp">.*?<\/span>/, '').trim();
+                return [timestamp, content];
+            }
+
+            formatContent(content) {
+                if (this.displayFormat === 'hex') {
+                    // Convertir ASCII en hex, groupé par 2 caractères
+                    return content.split('').map(char => char.charCodeAt(0).toString(16).padStart(2, '0').toUpperCase()).join(' ');
+                } else if (this.displayFormat === 'base64') {
+                    // Convertir ASCII en base64
+                    return btoa(content);
+                } else {
+                    // ASCII : convertir hex en ASCII si nécessaire
+                    if (content.match(/^([0-9A-Fa-f]{2}\s)*[0-9A-Fa-f]{2}$/)) {
+                        return content.split(' ').map(hex => String.fromCharCode(parseInt(hex, 16))).join('');
+                    }
+                    // Convertir base64 en ASCII si nécessaire
+                    try {
+                        return atob(content);
+                    } catch {
+                        // Si ce n'est pas du base64 valide, retourner le contenu tel quel
+                        return content;
+                    }
                 }
             }
         }
