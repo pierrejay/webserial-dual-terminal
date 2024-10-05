@@ -374,6 +374,7 @@
                 this.stopBits = 1;
                 this.parity = 'none';
                 this.terminalName = `Terminal ${containerId.slice(-1)}`;
+                this.isConnected = false; // Nouvel état interne pour suivre l'état de connexion de l'UI
 
                 this.render();
                 this.attachEventListeners();
@@ -451,7 +452,7 @@
 
             attachEventListeners() {
                 this.requestPortButton.addEventListener('click', () => this.requestPort());
-                this.connectButton.addEventListener('click', () => this.toggleConnection());
+                this.connectButton.addEventListener('click', () => this.handleConnectionButtonClick());
                 this.sendButton.addEventListener('click', () => this.sendSerialData());
                 this.sendMessage.addEventListener('keypress', (event) => {
                     if (event.key === 'Enter') {
@@ -480,55 +481,38 @@
                     this.port = await navigator.serial.requestPort();
                     this.connectButton.disabled = false;
                 } catch (error) {
-                    console.error('Error requesting port:', error);
-                    alert('Error requesting access to the serial port.');
+                    // Vérifier si l'erreur est due à l'annulation par l'utilisateur
+                    if (error.name !== 'NotFoundError') {
+                        console.error('Error requesting port:', error);
+                        alert('Error requesting access to the serial port.');
+                    }
+                    // Si c'est une annulation, on ne fait rien et on n'affiche pas d'erreur
                 }
             }
 
-            async isPortConnected() {
-                if (!this.port) return false;
-                try {
-                    // Tenter d'obtenir l'état du port
-                    await this.port.getSignals();
-                    return true;
-                } catch (error) {
-                    console.error('Error checking port connection:', error);
-                    return false;
-                }
-            }
-
-            async toggleConnection() {
-                const isConnected = await this.isPortConnected();
-                if (isConnected) {
-                    await this.disconnectFromPort();
+            async handleConnectionButtonClick() {
+                if (this.isConnected) {
+                    await this.disconnect();
                 } else {
-                    await this.connectToPort();
+                    await this.connect();
                 }
             }
 
-            async connectToPort() {
+            async connect() {
                 if (!this.port) {
                     alert('Please request access to a port first.');
                     return;
                 }
 
                 try {
-                    const isConnected = await this.isPortConnected();
-                    if (isConnected) {
-                        // Le port est déjà connecté, nous devons d'abord le déconnecter
-                        await this.disconnectFromPort();
-                    }
-
                     await this.port.open({
                         baudRate: this.baudRate,
                         dataBits: this.dataBits,
                         stopBits: this.stopBits,
                         parity: this.parity
                     });
-                    this.connectButton.textContent = 'Disconnect';
-                    this.connectButton.classList.remove('connect-button');
-                    this.connectButton.classList.add('disconnect-button');
-                    this.sendButton.disabled = false;
+                    this.isConnected = true;
+                    this.updateUIForConnectedState();
                     this.readSerialData();
                     
                     const timestamp = this.getTimestamp();
@@ -541,7 +525,7 @@
                 }
             }
 
-            async disconnectFromPort() {
+            async disconnect() {
                 if (this.port) {
                     this.keepReading = false;
                     try {
@@ -563,9 +547,25 @@
                 }
             }
 
-            getTimestamp() {
-                const now = new Date();
-                return `[${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}]`;
+            updateUIForConnectedState() {
+                this.connectButton.textContent = 'Disconnect';
+                this.connectButton.classList.remove('connect-button');
+                this.connectButton.classList.add('disconnect-button');
+                this.sendButton.disabled = false;
+            }
+
+            resetConnection() {
+                this.isConnected = false;
+                this.port = null;
+                this.reader = null;
+                this.writer = null;
+                this.keepReading = false;
+                this.connectButton.textContent = 'Connect';
+                this.connectButton.classList.remove('disconnect-button');
+                this.connectButton.classList.add('connect-button');
+                this.sendButton.disabled = true;
+                this.requestPortButton.disabled = false;
+                this.connectButton.disabled = true;
             }
 
             async readSerialData() {
@@ -595,6 +595,8 @@
                         }
                     } catch (error) {
                         console.error('Error reading:', error);
+                        // Si une erreur se produit pendant la lecture, on considère que la connexion est perdue
+                        this.handleConnectionLoss();
                     } finally {
                         this.reader.releaseLock();
                     }
@@ -605,6 +607,13 @@
                     this.output.innerHTML += `<span class="timestamp">${timestamp}</span>${formattedBuffer}<br>`;
                     this.scrollToBottom();
                 }
+            }
+
+            handleConnectionLoss() {
+                const timestamp = this.getTimestamp();
+                this.output.innerHTML += `<span class="timestamp">${timestamp}</span><span style="color: #e74c3c;">Connection lost. The device might have been disconnected.</span><br>`;
+                this.scrollToBottom();
+                this.resetConnection();
             }
 
             async sendSerialData() {
@@ -744,17 +753,9 @@
                 this.scrollToBottom();
             }
 
-            resetConnection() {
-                this.port = null;
-                this.reader = null;
-                this.writer = null;
-                this.keepReading = false;
-                this.connectButton.disabled = true;
-                this.connectButton.textContent = 'Connect';
-                this.connectButton.classList.remove('disconnect-button');
-                this.connectButton.classList.add('connect-button');
-                this.sendButton.disabled = true;
-                this.requestPortButton.disabled = false;
+            getTimestamp() {
+                const now = new Date();
+                return `[${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}]`;
             }
         }
 
